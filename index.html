@@ -1,0 +1,399 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Makeup Beach Sudoku - Production Ready</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            background: #000;
+        }
+        #game-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        canvas { display: block; margin: 0 auto; cursor: pointer; }
+        #ui-container {
+            position: absolute;
+            bottom: 2vh;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            z-index: 100;
+        }
+        .palette-button {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            background-color: rgba(255, 255, 255, 0.5);
+            background-size: 80%;
+            background-position: center;
+            background-repeat: no-repeat;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .palette-button:hover { transform: scale(1.1); background-color: rgba(255, 255, 255, 0.8); }
+        .palette-button.selected { border-color: #ff69b4; transform: scale(1.15); box-shadow: 0 0 15px #ff69b4; }
+        #new-game-button {
+            padding: 10px 15px; margin-left: 10px; font-family: 'Arial', sans-serif;
+            font-size: 16px; font-weight: bold; color: #333; background: rgba(255, 255, 255, 0.8);
+            border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s ease-in-out;
+        }
+        #new-game-button:hover { transform: scale(1.05); background: white; }
+        #info-button {
+            width: 48px; height: 48px; margin-right: 10px; font-family: 'Georgia', serif;
+            font-size: 24px; font-weight: bold; color: #555; background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0,0,0,0.1); border-radius: 50%; cursor: pointer;
+            transition: all 0.2s ease-in-out; order: -1;
+        }
+        #info-button:hover { transform: scale(1.1); background: white; color: #111; }
+        #info-modal {
+            display: none; position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%); width: 80%; max-width: 500px;
+            background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
+            border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border: 1px solid white; z-index: 200; text-align: center;
+            color: #333; font-family: 'Arial', sans-serif;
+        }
+        #info-modal h2 { margin-top: 0; color: #ff69b4; }
+        #info-modal p { line-height: 1.6; margin-bottom: 10px; }
+        #close-modal {
+             position: absolute; top: 10px; right: 15px; font-size: 28px;
+             color: #888; cursor: pointer; border: none; background: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-wrapper">
+        <div id="info-modal">
+             <button id="close-modal">&times;</button>
+             <h2>Makeup Beach Sudoku</h2>
+             <p>This game was made for my wife, inspired by her memories of playing similar makeup-themed Sudoku games on the old Cosmopolitan.com girl games section.</p>
+             <p>It's a quick and dirty clone, built with love to run great on mobile phones using Phaser and HTML5.</p>
+             <p><em>- Tront</em></p>
+        </div>
+        <div id="ui-container">
+            <button id="info-button">i</button>
+            <div class="palette-button" data-key="1" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Cpath fill=%22%23333%22 d=%22M19,30 h12 v6 h-12 z%22/%3E%3Cpath fill=%22%23ff007f%22 d=%22M25,14 L19,30 h12 z%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="2" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Crect x=%2221%22 y=%2210%22 width=%228%22 height=%2230%22 rx=%223%22 fill=%22%23800080%22/%3E%3Ccircle cx=%2225%22 cy=%2214%22 r=%224%22 fill=%22%23000%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="3" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Crect x=%2210%22 y=%2218%22 width=%2230%22 height=%2214%22 rx=%224%22 fill=%22%2387CEEB%22/%3E%3Ccircle cx=%2219%22 cy=%2225%22 r=%226%22 fill=%22%234682B4%22/%3E%3Ccircle cx=%2231%22 cy=%2225%22 r=%226%22 fill=%22%23ADD8E6%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="4" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Crect x=%2218%22 y=%2225%22 width=%2214%22 height=%2214%22 fill=%22%23ffc0cb%22/%3E%3Crect x=%2221%22 y=%2211%22 width=%228%22 height=%2214%22 fill=%22%23111%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="5" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Ccircle cx=%2225%22 cy=%2225%22 r=%2215%22 fill=%22%23FFD700%22/%3E%3Ccircle cx=%2225%22 cy=%2225%22 r=%2212%22 fill=%22%23FFE4B5%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="6" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Cellipse cx=%2225%22 cy=%2228%22 rx=%2212%22 ry=%2215%22 fill=%22%23EE82EE%22/%3E%3Ccircle cx=%2225%22 cy=%2215%22 r=%226%22 fill=%22%23FFB6C1%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="7" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Cellipse cx=%2225%22 cy=%2217%22 rx=%2210%22 ry=%228%22 fill=%22%23333%22/%3E%3Crect x=%2222%22 y=%2225%22 width=%226%22 height=%2215%22 rx=%222%22 fill=%22%238B4513%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="8" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Crect x=%2222%22 y=%2210%22 width=%226%22 height=%2230%22 rx=%223%22 fill=%22%23444%22/%3E%3Cpath d=%22M25,8 L22,15 h6 z%22 fill=%22%23111%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="palette-button" data-key="9" style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22%3E%3Cg%3E%3Crect x=%2219%22 y=%2210%22 width=%2212%22 height=%2230%22 rx=%225%22 fill=%22%23FF69B4%22/%3E%3Cellipse cx=%2222%22 cy=%2220%22 rx=%223%22 ry=%227%22 fill=%22rgba(255,255,255,0.5)%22/%3E%3C/g%3E%3C/svg%3E');"></div>
+            <button id="new-game-button">New Game</button>
+        </div>
+    </div>
+
+<script>
+class GameScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'GameScene' });
+        this.GRID_SIZE = 9;
+        this.board = [], this.solution = [], this.selectedIconKey = 1;
+        this.gridSprites = [], this.emptyCells = [];
+        this.gameElements = new Set(); // To keep track of all resizeable elements
+    }
+    
+    create() {
+        this.setupUI(); // Setup static HTML elements first
+        this.drawScene(); // Draw all Phaser elements
+        
+        this.input.on('gameobjectdown', this.onCellClicked, this);
+        this.input.on('pointermove', this.onPointerMove, this);
+        this.scale.on('resize', this.handleResize, this);
+    }
+
+    // --- SCENE DRAWING & RESIZING ---
+    drawScene() {
+        this.gameElements.forEach(element => element.destroy());
+        this.gameElements.clear();
+
+        this.calculateSizes();
+        this.createBeachAndSky();
+        this.createGridFrame();
+        this.createCrabs();
+        this.createMagicSparkles();
+        this.resetBoard();
+    }
+    
+    handleResize(gameSize) {
+        this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
+        this.drawScene();
+    }
+
+    calculateSizes() {
+        const { width, height } = this.sys.game.config;
+        const verticalPadding = 150;
+        const availableHeight = height - verticalPadding;
+        const availableWidth = width * 0.95;
+        this.CELL_SIZE = Math.floor(Math.min(availableHeight / this.GRID_SIZE, availableWidth / this.GRID_SIZE));
+    }
+
+    resetBoard() {
+        this.generateSudoku();
+        if (this.winText) { this.winText.destroy(); this.winText = null; }
+        if (this.winOverlay) { this.winOverlay.destroy(); this.winOverlay = null; }
+
+        this.emptyCells = [];
+        for (let i = 0; i < 9; i++) {
+            for (let j = 0; j < 9; j++) {
+                const cell = this.gridSprites[i][j];
+                if (cell.icon) { cell.icon.destroy(); cell.icon = null; }
+                
+                const value = this.board[i][j];
+                if (value !== 0) {
+                    const iconContainer = this.add.container(cell.x, cell.y);
+                    const icon = this.add.graphics();
+                    this.drawMakeupIcon(icon, value, this.CELL_SIZE * 0.8);
+                    iconContainer.add(icon);
+                    
+                    cell.icon = iconContainer;
+                    cell.setData({ isGiven: true, key: value });
+                    cell.disableInteractive();
+                    this.gameElements.add(iconContainer);
+                } else {
+                    cell.setData({ isGiven: false });
+                    cell.setInteractive();
+                    this.emptyCells.push(cell);
+                }
+            }
+        }
+    }
+
+    createBeachAndSky() {
+        const { width, height } = this.sys.game.config;
+        const skyTopColor = 0x87CEEB, skyBottomColor = 0xF0E68C, sandColor = 0xD2B48C, sunColor = 0xFFFF00, coronaColor = 0xFFFFFF;
+
+        const background = this.add.graphics().setDepth(-10).fillGradientStyle(skyTopColor, skyTopColor, skyBottomColor, skyBottomColor, 1).fillRect(0, 0, width, height);
+        const sand = this.add.graphics().setDepth(-9).fillStyle(sandColor).fillRect(0, height - 120, width, 120);
+
+        this.sun = this.add.circle(0, 0, this.CELL_SIZE * 0.7, sunColor).setDepth(-1);
+        this.sunCorona = this.add.circle(0, 0, this.CELL_SIZE * 0.9, coronaColor, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(-2);
+        
+        this.sun.x = -50; this.sun.y = height * 0.2;
+        this.sunCorona.setPosition(this.sun.x, this.sun.y);
+
+        this.tweens.add({
+            targets: this.sun, x: width + 50, y: height * 0.4, duration: 60000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1,
+            onUpdate: (tween, target) => { this.sunCorona.setPosition(target.x, target.y); }
+        });
+        this.tweens.add({ targets: this.sunCorona, scale: 1.15, duration: 2500, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
+        
+        this.gameElements.add(background).add(sand).add(this.sun).add(this.sunCorona);
+    }
+
+    createGridFrame() {
+        const totalGridWidth = this.GRID_SIZE * this.CELL_SIZE;
+        this.startX = (this.sys.game.config.width - totalGridWidth) / 2;
+        this.startY = (this.sys.game.config.height - totalGridWidth) / 2 - 60;
+        
+        const gridBg = this.add.graphics({ fillStyle: { color: 0xffffff, alpha: 0.8 } }).fillRoundedRect(this.startX - 10, this.startY - 10, totalGridWidth + 20, totalGridWidth + 20, 20);
+        
+        this.gridSprites = Array.from({ length: 9 }, () => Array(9).fill(null));
+        for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) {
+            const x = this.startX + j * this.CELL_SIZE + this.CELL_SIZE / 2;
+            const y = this.startY + i * this.CELL_SIZE + this.CELL_SIZE / 2;
+            this.gridSprites[i][j] = this.add.zone(x, y, this.CELL_SIZE, this.CELL_SIZE).setInteractive();
+        }
+        
+        const lines = this.add.graphics();
+        lines.lineStyle(1, 0x4B0082, 0.5);
+        for (let i = 0; i <= 9; i++) {
+            lines.moveTo(this.startX, this.startY + i * this.CELL_SIZE).lineTo(this.startX + totalGridWidth, this.startY + i * this.CELL_SIZE);
+            lines.moveTo(this.startX + i * this.CELL_SIZE, this.startY).lineTo(this.startX + i * this.CELL_SIZE, this.startY + totalGridWidth);
+        }
+        lines.strokePath();
+        lines.lineStyle(4, 0x4B0082, 1);
+        for (let i = 0; i <= 9; i++) {
+            if (i % 3 === 0) {
+                lines.moveTo(this.startX, this.startY + i * this.CELL_SIZE).lineTo(this.startX + totalGridWidth, this.startY + i * this.CELL_SIZE);
+                lines.moveTo(this.startX + i * this.CELL_SIZE, this.startY).lineTo(this.startX + i * this.CELL_SIZE, this.startY + totalGridWidth);
+            }
+        }
+        lines.strokePath();
+
+        this.hoverHighlight = this.add.graphics().setDepth(1);
+        this.gameElements.add(gridBg).add(lines).add(this.hoverHighlight);
+        this.gridSprites.flat().forEach(cell => this.gameElements.add(cell));
+    }
+
+    setupUI() {
+        document.querySelectorAll('.palette-button').forEach(button => {
+            button.addEventListener('click', () => {
+                this.selectedIconKey = parseInt(button.dataset.key);
+                document.querySelectorAll('.palette-button').forEach(btn => btn.classList.remove('selected'));
+                button.classList.add('selected');
+            });
+        });
+        document.querySelector('.palette-button[data-key="1"]').classList.add('selected');
+        document.getElementById('new-game-button').addEventListener('click', () => this.resetBoard());
+        const modal = document.getElementById('info-modal');
+        document.getElementById('info-button').addEventListener('click', () => { modal.style.display = 'block'; });
+        document.getElementById('close-modal').addEventListener('click', () => { modal.style.display = 'none'; });
+    }
+
+    onPointerMove(pointer) {
+        this.hoverHighlight.clear();
+        const col = Math.floor((pointer.x - this.startX) / this.CELL_SIZE);
+        const row = Math.floor((pointer.y - this.startY) / this.CELL_SIZE);
+        if (col >= 0 && col < 9 && row >= 0 && row < 9) {
+            this.hoverHighlight.fillStyle(0xff69b4, 0.4);
+            this.hoverHighlight.fillRect(this.startX, this.startY + row * this.CELL_SIZE, this.GRID_SIZE * this.CELL_SIZE, this.CELL_SIZE);
+            this.hoverHighlight.fillRect(this.startX + col * this.CELL_SIZE, this.startY, this.CELL_SIZE, this.GRID_SIZE * this.CELL_SIZE);
+        }
+    }
+    
+    onCellClicked(pointer, cell) {
+        if (!cell.getData('isGiven') && this.selectedIconKey) {
+            this.placeIconOnGrid(cell);
+        }
+    }
+
+    placeIconOnGrid(cell) {
+        const gridX = Math.floor((cell.x - this.startX) / this.CELL_SIZE);
+        const gridY = Math.floor((cell.y - this.startY) / this.CELL_SIZE);
+        if (cell.icon) cell.icon.destroy();
+        const isCorrect = this.solution[gridY][gridX] === this.selectedIconKey;
+        const iconContainer = this.add.container(cell.x, cell.y);
+        const icon = this.add.graphics();
+        this.drawMakeupIcon(icon, this.selectedIconKey, this.CELL_SIZE * 0.8);
+        iconContainer.add(icon).setScale(0);
+        this.gameElements.add(iconContainer);
+        this.tweens.add({
+            targets: iconContainer, scale: 1, duration: 300, ease: 'Bounce.easeOut',
+            onComplete: () => {
+                if(isCorrect){
+                    this.board[gridY][gridX] = this.selectedIconKey;
+                    cell.icon = iconContainer;
+                    cell.disableInteractive(); this.emptyCells.splice(this.emptyCells.indexOf(cell), 1);
+                    this.triggerParticles(cell.x, cell.y, [0xff007f, 0xffc0cb, 0xFFD700], 30, 200);
+                    if(this.checkWin()) this.winGame();
+                } else {
+                    this.cameras.main.shake(100, 0.005); this.flashIncorrectLines(gridY, gridX); this.jiggleConflicts(gridY, gridX, this.selectedIconKey);
+                    this.triggerParticles(cell.x, cell.y, [0xff0000, 0x8b0000], 15, 150);
+                    this.tweens.add({ targets: iconContainer, alpha: 0, angle: 30, duration: 400, onComplete: () => iconContainer.destroy() });
+                }
+            }
+        });
+    }
+
+    flashIncorrectLines(row, col) {
+        const highlight = this.add.graphics().fillStyle(0xff0033, 0.4).setAlpha(0).setDepth(1);
+        highlight.fillRect(this.startX, this.startY + row * this.CELL_SIZE, this.GRID_SIZE * this.CELL_SIZE, this.CELL_SIZE);
+        highlight.fillRect(this.startX + col * this.CELL_SIZE, this.startY, this.CELL_SIZE, this.GRID_SIZE * this.CELL_SIZE);
+        this.tweens.add({ targets: highlight, alpha: 1, duration: 150, ease: 'Cubic.easeOut', yoyo: true, repeat: 1, onComplete: () => highlight.destroy() });
+    }
+
+    jiggleConflicts(row, col, num) {
+        const conflicts = [];
+        for (let j = 0; j < 9; j++) { const s = this.gridSprites[row][j]; if (j !== col && s.icon && s.getData('isGiven') && s.getData('key') === num) conflicts.push(s.icon); }
+        for (let i = 0; i < 9; i++) { const s = this.gridSprites[i][col]; if (i !== row && s.icon && s.getData('isGiven') && s.getData('key') === num) conflicts.push(s.icon); }
+        const startRow = row - row % 3, startCol = col - col % 3;
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+            const r = startRow + i, c = startCol + j; const s = this.gridSprites[r][c];
+            if ((r !== row || c !== col) && s.icon && s.getData('isGiven') && s.getData('key') === num) conflicts.push(s.icon);
+        }
+        if (conflicts.length > 0) this.tweens.add({ targets: conflicts, angle: '+=5', duration: 75, ease: 'Sine.easeInOut', yoyo: true, repeat: 3 });
+    }
+    
+    // --- SUDOKU LOGIC ---
+    generateSudoku() { this.board = Array.from({ length: 9 }, () => Array(9).fill(0)); this.fillDiagonal(); this.fillRemaining(0, 3); this.solution = JSON.parse(JSON.stringify(this.board)); this.removeDigits(); }
+    fillDiagonal() { for (let i = 0; i < 9; i += 3) this.fillBox(i, i); }
+    fillBox(r, c) { let n; for (let i=0; i<3; i++) for (let j=0; j<3; j++) { do { n = Math.floor(Math.random()*9)+1; } while (!this.isSafeInBox(r, c, n)); this.board[r+i][c+j] = n; } }
+    isSafeInBox(rS, cS, n) { for (let i=0; i<3; i++) for (let j=0; j<3; j++) if (this.board[rS+i][cS+j]===n) return false; return true; }
+    fillRemaining(i, j) { if (j>=9&&i<8){i++; j=0;} if (i>=9&&j>=9) return true; if (i<3){if(j<3)j=3;} else if (i<6){if(j===3)j=6;} else{if(j===6){i++; j=0; if(i>=9)return true;}} for (let n=1; n<=9; n++){if (this.isSafe(i, j, n)){this.board[i][j]=n; if(this.fillRemaining(i, j+1))return true; this.board[i][j]=0;}} return false; }
+    isSafe(i, j, n) { return this.isSafeInRow(i, n) && this.isSafeInCol(j, n) && this.isSafeInBox(i-i%3, j-j%3, n); }
+    isSafeInRow(i, n) { for (let j=0; j<9; j++) if(this.board[i][j]===n) return false; return true; }
+    isSafeInCol(j, n) { for (let i=0; i<9; i++) if(this.board[i][j]===n) return false; return true; }
+    removeDigits() { let c = 48; while (c !== 0) { let i = Math.floor(Math.random()*9); let j = Math.floor(Math.random()*9); if (this.board[i][j] !== 0) { this.board[i][j] = 0; c--; } } }
+    
+    // --- ICON DRAWING ---
+    drawMakeupIcon(graphics, key, size) {
+        graphics.clear();
+        const shadowColor = 0x000000, shadowAlpha = 0.3, shadowOffset = size * 0.05;
+        graphics.fillStyle(shadowColor, shadowAlpha).translateCanvas(shadowOffset, shadowOffset); this.drawIconShape(graphics, key, size);
+        graphics.translateCanvas(-shadowOffset, -shadowOffset); this.drawIconShape(graphics, key, size);
+    }
+    drawIconShape(graphics, key, size) {
+         switch(key) {
+            case 1: graphics.fillStyle(0x333333).fillRoundedRect(-size*0.15,size*0.05,size*0.3,size*0.3,size*0.05).fillStyle(0xff007f).fillTriangle(0,-size*0.35,-size*0.15,size*0.05,size*0.15,size*0.05); break;
+            case 2: graphics.fillStyle(0x800080).fillRoundedRect(-size*0.1,-size*0.4,size*0.2,size*0.8,size*0.08).fillStyle(0x000000).fillCircle(0,-size*0.35,size*0.1); break;
+            case 3: graphics.fillStyle(0x87CEEB).fillRoundedRect(-size*0.4,-size*0.25,size*0.8,size*0.5,size*0.1).fillStyle(0x4682B4).fillCircle(-size*0.2,0,size*0.15).fillStyle(0xADD8E6).fillCircle(size*0.2,0,size*0.15); break;
+            case 4: graphics.fillStyle(0xffc0cb).fillRect(-size*0.2,0,size*0.4,size*0.4).fillStyle(0x111111).fillRect(-size*0.1,-size*0.4,size*0.2,size*0.4); break;
+            case 5: graphics.fillStyle(0xFFD700).fillCircle(0,0,size*0.4).fillStyle(0xFFE4B5).fillCircle(0,0,size*0.3); break;
+            case 6: graphics.fillStyle(0xEE82EE).fillEllipse(0,0,size*0.5,size*0.8).fillStyle(0xFFB6C1).fillCircle(0,-size*0.35,size*0.15); break;
+            case 7: graphics.fillStyle(0x8B4513).fillRoundedRect(-size*0.05,0,size*0.1,size*0.4,size*0.02).fillStyle(0x333333).fillEllipse(0,-size*0.2,size*0.3,size*0.25); break;
+            case 8: graphics.fillStyle(0x444444).fillRoundedRect(-size*0.06,-size*0.4,size*0.12,size*0.8,size*0.06).fillStyle(0x111111).fillTriangle(0,-size*0.45,-size*0.06,-size*0.3,size*0.06,-size*0.3); break;
+            case 9: graphics.fillStyle(0xFF69B4).fillRoundedRect(-size*0.15,-size*0.4,size*0.3,size*0.8,size*0.1).fillStyle(0xFFFFFF,0.5).fillEllipse(-size*0.05,-size*0.2,size*0.1,size*0.2); break;
+        }
+    }
+
+    // --- AMBIENT EFFECTS & WIN STATE ---
+    createCrabs() {
+        const crabGroup = this.add.group();
+        for(let i=0; i<3; i++) {
+            const y = this.sys.game.config.height - 100; 
+            const x = Phaser.Math.Between(50, this.sys.game.config.width-50);
+            const crabBody = this.add.graphics().fillStyle(0xFF4500).fillEllipse(0, 0, 12, 9);
+            const crabLegs = this.add.graphics().lineStyle(3, 0xFF4500, 1).beginPath().moveTo(-8,-5).lineTo(-15,-12).moveTo(8,-5).lineTo(15,-12).moveTo(-8,2).lineTo(-14,8).moveTo(-6,4).lineTo(-10,10).moveTo(8,2).lineTo(14,8).moveTo(6,4).lineTo(10,10).strokePath();
+            const eyes = this.add.graphics().fillStyle(0x000000).fillCircle(-3,-3,2).fillCircle(3,-3,2);
+            const crab = this.add.container(x, y, [crabBody, crabLegs, eyes]);
+            this.tweens.add({ targets: crab, x: `+=${Phaser.Math.Between(50, 150) * Phaser.Math.RND.pick([-1,1])}`, y: '+=5', duration: Phaser.Math.Between(3000, 5000), ease: 'Sine.easeInOut', yoyo: true, repeat: -1, onYoyo: (t, c) => c.scaleX*=-1, onRepeat: (t, c) => c.scaleX*=-1 });
+            crabGroup.add(crab);
+        }
+        this.gameElements.add(crabGroup);
+    }
+    createMagicSparkles() { this.time.addEvent({ delay: 2000, callback: () => { if (this.emptyCells.length > 0) { const cell = Phaser.Math.RND.pick(this.emptyCells); this.triggerParticles(cell.x, cell.y, [0xffffff, 0xffd700, 0xffc0cb], 5, 50, 600); } }, loop: true }); }
+    triggerParticles(x, y, colors, count=20, speed=150, lifespan=800){ if (!this.textures.exists('p')) this.add.graphics().fillStyle(0xffffff).fillRect(0,0,1,1).generateTexture('p',1,1).destroy(); this.add.particles(x,y,'p',{color:colors,lifespan,scale:{start:1.5,end:0},speed,blendMode:'ADD'}).explode(count); }
+    checkWin() { return this.emptyCells.length === 0; }
+    winGame() {
+        const { width, height } = this.sys.game.config;
+        this.winOverlay = this.add.graphics().fillStyle(0, 0.5).fillRect(0, 0, width, height).setAlpha(0).setDepth(10);
+        this.tweens.add({ targets: this.winOverlay, alpha: 1, duration: 500 });
+        this.winText = this.add.text(width/2, height/2, 'FLAWLESS!', { fontFamily:'"Comic Sans MS", cursive', fontSize:'80px', color:'#ff69b4', stroke:'#fff', strokeThickness:10, align:'center', shadow:{offsetX:3,offsetY:3,color:'#000',blur:5,stroke:true,fill:true}}).setOrigin(0.5).setScale(0).setDepth(11);
+        this.tweens.add({ targets: this.winText, scale: 1, angle: 720, duration: 1200, ease: 'Elastic.easeOut', delay: 300, onComplete: () => this.time.addEvent({ delay: 200, callback: () => this.triggerParticles(Phaser.Math.Between(0,width), Phaser.Math.Between(0,height), [0xff007f,0xffc0cb,0xFFD700,0xEE82EE,0x87CEEB],25,250,1200), loop: true }) });
+        this.gameElements.add(this.winOverlay).add(this.winText);
+    }
+}
+
+const config = {
+    type: Phaser.AUTO,
+    transparent: true,
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: window.innerWidth,
+        height: window.innerHeight
+    },
+    parent: 'game-wrapper',
+    scene: [GameScene]
+};
+
+const game = new Phaser.Game(config);
+
+</script>
+</body>
+</html>
