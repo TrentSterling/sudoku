@@ -1,0 +1,2 @@
+# sudoku
+vibecoded sudoku clone
