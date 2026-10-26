@@ -1,3 +1,11 @@
+# 2026-10-26: responsive controls
+
+On a 390px-wide phone, New Game previously began at x=434, several palette choices were offscreen, and the 469px-wide win label was clipped. Compact layouts now keep every palette choice, Info, New Game and About reachable with action targets at least 44px. Portrait controls reflow below the board; short landscape uses a side panel. The board fills the remaining space without intersecting controls.
+
+Info content scrolls within the viewport with a reachable Close button. The compact win label fits the board and uses a bounded animation; the desktop presentation remains unchanged. Compact ambient crabs stay below the board. Browser zoom is enabled. Puzzle rules, the placement transaction fix and progress across resize are preserved.
+
+The responsive gate adds 20 viewport cases, rotation/restoration, all selected palette states, dialogs, completion and reset. Existing gameplay and About gates remain in place. Zoom qualification uses equivalent CSS viewports/pixel density, not physical pinch or browser-menu gestures.
+
 # 2026-10-26: placement correctness
 
 Changing the palette during the placement animation previously stored the new selection while displaying the old icon. Repeating a placement on the same cell could remove an unrelated empty cell and trigger a false win with blanks still on the board.

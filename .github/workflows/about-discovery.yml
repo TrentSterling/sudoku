@@ -32,6 +32,8 @@ jobs:
         run: node tests/about-discovery/browser.cjs
       - name: Sudoku scene-method browser regressions
         run: node tests/gameplay/browser.cjs
+      - name: Sudoku responsive layout regressions
+        run: node tests/gameplay/responsive.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
