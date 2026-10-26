@@ -124,6 +124,10 @@ class GameScene extends Phaser.Scene {
         this.board = [], this.solution = [], this.selectedIconKey = 1;
         this.gridSprites = [], this.emptyCells = [];
         this.gameElements = new Set(); // To keep track of all resizeable elements
+        this.feedbackElements = new Set();
+        this.pendingPlacements = new Map();
+        this.givenCells = [];
+        this.winParticlesEvent = null;
     }
     
     create() {
@@ -137,15 +141,22 @@ class GameScene extends Phaser.Scene {
 
     // --- SCENE DRAWING & RESIZING ---
     drawScene() {
+        this.cancelPlacements();
+        this.clearWinState();
+        this.tweens.killAll();
+        this.time.removeAllEvents();
         this.gameElements.forEach(element => element.destroy());
         this.gameElements.clear();
+        this.feedbackElements.clear();
 
         this.calculateSizes();
         this.createBeachAndSky();
         this.createGridFrame();
         this.createCrabs();
         this.createMagicSparkles();
-        this.resetBoard();
+        if (this.board.length) this.renderBoard();
+        else this.resetBoard();
+        if (this.checkWin()) this.winGame();
     }
     
     handleResize(gameSize) {
@@ -154,7 +165,7 @@ class GameScene extends Phaser.Scene {
     }
 
     calculateSizes() {
-        const { width, height } = this.sys.game.config;
+        const { width, height } = this.scale;
         const verticalPadding = 150;
         const availableHeight = height - verticalPadding;
         const availableWidth = width * 0.95;
@@ -162,15 +173,20 @@ class GameScene extends Phaser.Scene {
     }
 
     resetBoard() {
+        this.cancelPlacements();
+        this.clearWinState();
+        for (const effect of this.feedbackElements) this.destroyIcon(effect);
         this.generateSudoku();
-        if (this.winText) { this.winText.destroy(); this.winText = null; }
-        if (this.winOverlay) { this.winOverlay.destroy(); this.winOverlay = null; }
+        this.givenCells = this.board.map(row => row.map(value => value !== 0));
+        this.renderBoard();
+    }
 
+    renderBoard() {
         this.emptyCells = [];
         for (let i = 0; i < 9; i++) {
             for (let j = 0; j < 9; j++) {
                 const cell = this.gridSprites[i][j];
-                if (cell.icon) { cell.icon.destroy(); cell.icon = null; }
+                if (cell.icon) { this.destroyIcon(cell.icon); cell.icon = null; }
                 
                 const value = this.board[i][j];
                 if (value !== 0) {
@@ -180,11 +196,11 @@ class GameScene extends Phaser.Scene {
                     iconContainer.add(icon);
                     
                     cell.icon = iconContainer;
-                    cell.setData({ isGiven: true, key: value });
+                    cell.setData({ isGiven: this.givenCells[i][j], key: value });
                     cell.disableInteractive();
                     this.gameElements.add(iconContainer);
                 } else {
-                    cell.setData({ isGiven: false });
+                    cell.setData({ isGiven: false, key: 0 });
                     cell.setInteractive();
                     this.emptyCells.push(cell);
                 }
@@ -193,7 +209,7 @@ class GameScene extends Phaser.Scene {
     }
 
     createBeachAndSky() {
-        const { width, height } = this.sys.game.config;
+        const { width, height } = this.scale;
         const skyTopColor = 0x87CEEB, skyBottomColor = 0xF0E68C, sandColor = 0xD2B48C, sunColor = 0xFFFF00, coronaColor = 0xFFFFFF;
 
         const background = this.add.graphics().setDepth(-10).fillGradientStyle(skyTopColor, skyTopColor, skyBottomColor, skyBottomColor, 1).fillRect(0, 0, width, height);
@@ -216,8 +232,8 @@ class GameScene extends Phaser.Scene {
 
     createGridFrame() {
         const totalGridWidth = this.GRID_SIZE * this.CELL_SIZE;
-        this.startX = (this.sys.game.config.width - totalGridWidth) / 2;
-        this.startY = (this.sys.game.config.height - totalGridWidth) / 2 - 60;
+        this.startX = (this.scale.width - totalGridWidth) / 2;
+        this.startY = (this.scale.height - totalGridWidth) / 2 - 60;
         
         const gridBg = this.add.graphics({ fillStyle: { color: 0xffffff, alpha: 0.8 } }).fillRoundedRect(this.startX - 10, this.startY - 10, totalGridWidth + 20, totalGridWidth + 20, 20);
         
@@ -281,29 +297,71 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    destroyIcon(icon) {
+        this.tweens.killTweensOf(icon);
+        this.gameElements.delete(icon);
+        this.feedbackElements.delete(icon);
+        icon.destroy();
+    }
+
+    cancelPlacements() {
+        for (const [cell, placement] of this.pendingPlacements) {
+            this.cancelPlacement(cell, placement);
+        }
+    }
+
+    cancelPlacement(cell, placement) {
+        if (this.pendingPlacements.get(cell) !== placement) return;
+        this.pendingPlacements.delete(cell);
+        if (cell.icon === placement.icon) cell.icon = null;
+        this.destroyIcon(placement.icon);
+        if (this.emptyCells.includes(cell)) cell.setInteractive();
+    }
+
+    clearWinState() {
+        if (this.winParticlesEvent) { this.winParticlesEvent.remove(); this.winParticlesEvent = null; }
+        for (const name of ['winText', 'winOverlay']) {
+            if (this[name]) { this.destroyIcon(this[name]); this[name] = null; }
+        }
+    }
+
     placeIconOnGrid(cell) {
         const gridX = Math.floor((cell.x - this.startX) / this.CELL_SIZE);
         const gridY = Math.floor((cell.y - this.startY) / this.CELL_SIZE);
-        if (cell.icon) cell.icon.destroy();
-        const isCorrect = this.solution[gridY][gridX] === this.selectedIconKey;
+        const value = this.selectedIconKey;
+        if (this.gridSprites[gridY]?.[gridX] !== cell || this.board[gridY][gridX] !== 0 ||
+            this.pendingPlacements.has(cell) || !Number.isInteger(value) || value < 1 || value > 9) return;
+        const board = this.board;
+        const isCorrect = this.solution[gridY][gridX] === value;
         const iconContainer = this.add.container(cell.x, cell.y);
         const icon = this.add.graphics();
-        this.drawMakeupIcon(icon, this.selectedIconKey, this.CELL_SIZE * 0.8);
+        this.drawMakeupIcon(icon, value, this.CELL_SIZE * 0.8);
         iconContainer.add(icon).setScale(0);
         this.gameElements.add(iconContainer);
+        const placement = { icon: iconContainer };
+        this.pendingPlacements.set(cell, placement);
+        cell.icon = iconContainer;
+        cell.disableInteractive();
+        const isCurrent = () => this.pendingPlacements.get(cell) === placement &&
+            this.board === board && this.gridSprites[gridY]?.[gridX] === cell;
         this.tweens.add({
             targets: iconContainer, scale: 1, duration: 300, ease: 'Bounce.easeOut',
+            onStop: () => this.cancelPlacement(cell, placement),
             onComplete: () => {
-                if(isCorrect){
-                    this.board[gridY][gridX] = this.selectedIconKey;
-                    cell.icon = iconContainer;
-                    cell.disableInteractive(); this.emptyCells.splice(this.emptyCells.indexOf(cell), 1);
+                if (!isCurrent()) return;
+                if (isCorrect) {
+                    this.pendingPlacements.delete(cell);
+                    board[gridY][gridX] = value;
+                    cell.setData('key', value);
+                    this.emptyCells = this.emptyCells.filter(empty => empty !== cell);
                     this.triggerParticles(cell.x, cell.y, [0xff007f, 0xffc0cb, 0xFFD700], 30, 200);
-                    if(this.checkWin()) this.winGame();
+                    if (this.checkWin()) this.winGame();
                 } else {
-                    this.cameras.main.shake(100, 0.005); this.flashIncorrectLines(gridY, gridX); this.jiggleConflicts(gridY, gridX, this.selectedIconKey);
+                    this.cameras.main.shake(100, 0.005); this.flashIncorrectLines(gridY, gridX); this.jiggleConflicts(gridY, gridX, value);
                     this.triggerParticles(cell.x, cell.y, [0xff0000, 0x8b0000], 15, 150);
-                    this.tweens.add({ targets: iconContainer, alpha: 0, angle: 30, duration: 400, onComplete: () => iconContainer.destroy() });
+                    this.tweens.add({ targets: iconContainer, alpha: 0, angle: 30, duration: 400,
+                        onStop: () => this.cancelPlacement(cell, placement),
+                        onComplete: () => this.cancelPlacement(cell, placement) });
                 }
             }
         });
@@ -311,9 +369,11 @@ class GameScene extends Phaser.Scene {
 
     flashIncorrectLines(row, col) {
         const highlight = this.add.graphics().fillStyle(0xff0033, 0.4).setAlpha(0).setDepth(1);
+        this.gameElements.add(highlight);
+        this.feedbackElements.add(highlight);
         highlight.fillRect(this.startX, this.startY + row * this.CELL_SIZE, this.GRID_SIZE * this.CELL_SIZE, this.CELL_SIZE);
         highlight.fillRect(this.startX + col * this.CELL_SIZE, this.startY, this.CELL_SIZE, this.GRID_SIZE * this.CELL_SIZE);
-        this.tweens.add({ targets: highlight, alpha: 1, duration: 150, ease: 'Cubic.easeOut', yoyo: true, repeat: 1, onComplete: () => highlight.destroy() });
+        this.tweens.add({ targets: highlight, alpha: 1, duration: 150, ease: 'Cubic.easeOut', yoyo: true, repeat: 1, onComplete: () => this.destroyIcon(highlight) });
     }
 
     jiggleConflicts(row, col, num) {
@@ -362,28 +422,34 @@ class GameScene extends Phaser.Scene {
 
     // --- AMBIENT EFFECTS & WIN STATE ---
     createCrabs() {
-        const crabGroup = this.add.group();
         for(let i=0; i<3; i++) {
-            const y = this.sys.game.config.height - 100; 
-            const x = Phaser.Math.Between(50, this.sys.game.config.width-50);
+            const y = this.scale.height - 100;
+            const x = Phaser.Math.Between(50, this.scale.width-50);
             const crabBody = this.add.graphics().fillStyle(0xFF4500).fillEllipse(0, 0, 12, 9);
             const crabLegs = this.add.graphics().lineStyle(3, 0xFF4500, 1).beginPath().moveTo(-8,-5).lineTo(-15,-12).moveTo(8,-5).lineTo(15,-12).moveTo(-8,2).lineTo(-14,8).moveTo(-6,4).lineTo(-10,10).moveTo(8,2).lineTo(14,8).moveTo(6,4).lineTo(10,10).strokePath();
             const eyes = this.add.graphics().fillStyle(0x000000).fillCircle(-3,-3,2).fillCircle(3,-3,2);
             const crab = this.add.container(x, y, [crabBody, crabLegs, eyes]);
             this.tweens.add({ targets: crab, x: `+=${Phaser.Math.Between(50, 150) * Phaser.Math.RND.pick([-1,1])}`, y: '+=5', duration: Phaser.Math.Between(3000, 5000), ease: 'Sine.easeInOut', yoyo: true, repeat: -1, onYoyo: (t, c) => c.scaleX*=-1, onRepeat: (t, c) => c.scaleX*=-1 });
-            crabGroup.add(crab);
+            this.gameElements.add(crab);
         }
-        this.gameElements.add(crabGroup);
     }
     createMagicSparkles() { this.time.addEvent({ delay: 2000, callback: () => { if (this.emptyCells.length > 0) { const cell = Phaser.Math.RND.pick(this.emptyCells); this.triggerParticles(cell.x, cell.y, [0xffffff, 0xffd700, 0xffc0cb], 5, 50, 600); } }, loop: true }); }
-    triggerParticles(x, y, colors, count=20, speed=150, lifespan=800){ if (!this.textures.exists('p')) this.add.graphics().fillStyle(0xffffff).fillRect(0,0,1,1).generateTexture('p',1,1).destroy(); this.add.particles(x,y,'p',{color:colors,lifespan,scale:{start:1.5,end:0},speed,blendMode:'ADD'}).explode(count); }
-    checkWin() { return this.emptyCells.length === 0; }
+    triggerParticles(x, y, colors, count=20, speed=150, lifespan=800){
+        if (!this.textures.exists('p')) this.add.graphics().fillStyle(0xffffff).fillRect(0,0,1,1).generateTexture('p',1,1).destroy();
+        const emitter = this.add.particles(x,y,'p',{color:colors,lifespan,scale:{start:1.5,end:0},speed,blendMode:'ADD'});
+        this.gameElements.add(emitter);
+        this.feedbackElements.add(emitter);
+        emitter.once('complete', () => this.destroyIcon(emitter));
+        emitter.explode(count);
+    }
+    checkWin() { return this.board.length === 9 && this.board.every((row, y) => row.every((value, x) => value !== 0 && value === this.solution[y][x])); }
     winGame() {
-        const { width, height } = this.sys.game.config;
+        if (this.winText || !this.checkWin()) return;
+        const { width, height } = this.scale;
         this.winOverlay = this.add.graphics().fillStyle(0, 0.5).fillRect(0, 0, width, height).setAlpha(0).setDepth(10);
         this.tweens.add({ targets: this.winOverlay, alpha: 1, duration: 500 });
         this.winText = this.add.text(width/2, height/2, 'FLAWLESS!', { fontFamily:'"Comic Sans MS", cursive', fontSize:'80px', color:'#ff69b4', stroke:'#fff', strokeThickness:10, align:'center', shadow:{offsetX:3,offsetY:3,color:'#000',blur:5,stroke:true,fill:true}}).setOrigin(0.5).setScale(0).setDepth(11);
-        this.tweens.add({ targets: this.winText, scale: 1, angle: 720, duration: 1200, ease: 'Elastic.easeOut', delay: 300, onComplete: () => this.time.addEvent({ delay: 200, callback: () => this.triggerParticles(Phaser.Math.Between(0,width), Phaser.Math.Between(0,height), [0xff007f,0xffc0cb,0xFFD700,0xEE82EE,0x87CEEB],25,250,1200), loop: true }) });
+        this.tweens.add({ targets: this.winText, scale: 1, angle: 720, duration: 1200, ease: 'Elastic.easeOut', delay: 300, onComplete: () => { this.winParticlesEvent = this.time.addEvent({ delay: 200, callback: () => this.triggerParticles(Phaser.Math.Between(0,width), Phaser.Math.Between(0,height), [0xff007f,0xffc0cb,0xFFD700,0xEE82EE,0x87CEEB],25,250,1200), loop: true }); } });
         this.gameElements.add(this.winOverlay).add(this.winText);
     }
 }
