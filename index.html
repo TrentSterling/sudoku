@@ -13,7 +13,7 @@
 </script>
     <title>Makeup Beach Sudoku - Production Ready</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
     <style>
         body, html {
@@ -31,7 +31,7 @@
             align-items: center;
             position: relative;
         }
-        canvas { display: block; margin: 0 auto; cursor: pointer; }
+        canvas { display: block; margin: 0 auto; cursor: pointer; touch-action: manipulation !important; }
         #ui-container {
             position: absolute;
             bottom: 2vh;
@@ -89,6 +89,93 @@
         #close-modal {
              position: absolute; top: 10px; right: 15px; font-size: 28px;
              color: #888; cursor: pointer; border: none; background: none;
+        }
+
+        /* Compact play area: keep every palette choice and action at least 44px. */
+        body.sudoku-compact #ui-container {
+            box-sizing: border-box;
+            width: min(376px, calc(100% - 16px));
+            bottom: calc(64px + env(safe-area-inset-bottom));
+            display: grid;
+            grid-template-columns: repeat(6, minmax(44px, 1fr));
+            gap: 4px;
+        }
+        body.sudoku-compact .palette-button,
+        body.sudoku-compact #info-button,
+        body.sudoku-compact #new-game-button {
+            box-sizing: border-box;
+            width: 100%;
+            min-width: 44px;
+            height: 48px;
+            min-height: 44px;
+            margin: 0;
+            padding: 0;
+            transform: none;
+            transition: background-color .2s, border-color .2s, box-shadow .2s;
+        }
+        body.sudoku-compact .palette-button { order: 0; }
+        body.sudoku-compact #info-button { order: 1; }
+        body.sudoku-compact #new-game-button { order: 2; grid-column: span 2; }
+        body.sudoku-compact.sudoku-side #ui-container {
+            width: 182px;
+            left: auto;
+            right: 8px;
+            top: calc((100% - 56px - env(safe-area-inset-bottom)) / 2);
+            bottom: auto;
+            transform: translateY(-50%);
+            grid-template-columns: repeat(3, minmax(44px, 1fr));
+        }
+        body.sudoku-compact #info-modal {
+            box-sizing: border-box;
+            top: 12px;
+            width: calc(100% - 24px);
+            max-height: calc(100% - 76px - env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            padding: 12px 20px 20px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        body.sudoku-compact #close-modal {
+            position: sticky;
+            display: block;
+            top: 0;
+            right: auto;
+            margin: 0 -8px 4px auto;
+            width: 44px;
+            height: 44px;
+            min-height: 44px;
+            z-index: 1;
+            border-radius: 50%;
+            background: #fff7fc;
+        }
+        body.sudoku-compact #trontAbout {
+            left: 8px;
+            bottom: calc(8px + env(safe-area-inset-bottom));
+        }
+        body.sudoku-compact #trontAbout > summary {
+            box-sizing: border-box;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+        @media (max-width: 319px) {
+            body.sudoku-compact:not(.sudoku-side) #ui-container { grid-template-columns: repeat(5, minmax(44px, 1fr)); }
+        }
+        @media (max-width: 279px) {
+            body.sudoku-compact:not(.sudoku-side) #ui-container { grid-template-columns: repeat(4, minmax(44px, 1fr)); }
+        }
+        @media (max-width: 227px) {
+            body.sudoku-compact:not(.sudoku-side) #ui-container { grid-template-columns: repeat(3, minmax(44px, 1fr)); }
+        }
+        @media (max-height: 300px) {
+            body.sudoku-compact.sudoku-side #ui-container {
+                width: 236px;
+                padding: 6px;
+                grid-template-columns: repeat(4, minmax(44px, 1fr));
+            }
+            body.sudoku-compact.sudoku-side .palette-button,
+            body.sudoku-compact.sudoku-side #info-button,
+            body.sudoku-compact.sudoku-side #new-game-button { height: 44px; }
         }
     </style>
 </head>
@@ -166,10 +253,24 @@ class GameScene extends Phaser.Scene {
 
     calculateSizes() {
         const { width, height } = this.scale;
-        const verticalPadding = 150;
-        const availableHeight = height - verticalPadding;
-        const availableWidth = width * 0.95;
-        this.CELL_SIZE = Math.floor(Math.min(availableHeight / this.GRID_SIZE, availableWidth / this.GRID_SIZE));
+        this.compactLayout = width <= 760 || height <= 540;
+        this.sideLayout = this.compactLayout && width >= 480 && width > height * 1.2;
+        document.body.classList.toggle('sudoku-compact', this.compactLayout);
+        document.body.classList.toggle('sudoku-side', this.sideLayout);
+        if (!this.compactLayout) {
+            this.CELL_SIZE = Math.floor(Math.min((height - 150) / 9, width * 0.95 / 9));
+            this.boardArea = null;
+            return;
+        }
+        const canvas = this.game.canvas.getBoundingClientRect();
+        const controls = document.getElementById('ui-container').getBoundingClientRect();
+        const about = document.querySelector('#trontAbout > summary')?.getBoundingClientRect();
+        const sx = width / canvas.width, sy = height / canvas.height;
+        const footerTop = about ? (about.top - canvas.top) * sy : height - 56;
+        const right = this.sideLayout ? (controls.left - canvas.left) * sx - 12 : width - 12;
+        const bottom = this.sideLayout ? footerTop - 12 : (controls.top - canvas.top) * sy - 12;
+        this.boardArea = { x: 12, y: 12, width: Math.max(40, right - 12), height: Math.max(40, bottom - 12) };
+        this.CELL_SIZE = Math.max(1, Math.floor((Math.min(this.boardArea.width, this.boardArea.height) - 20) / 9));
     }
 
     resetBoard() {
@@ -232,8 +333,8 @@ class GameScene extends Phaser.Scene {
 
     createGridFrame() {
         const totalGridWidth = this.GRID_SIZE * this.CELL_SIZE;
-        this.startX = (this.scale.width - totalGridWidth) / 2;
-        this.startY = (this.scale.height - totalGridWidth) / 2 - 60;
+        this.startX = this.boardArea ? this.boardArea.x + (this.boardArea.width - totalGridWidth) / 2 : (this.scale.width - totalGridWidth) / 2;
+        this.startY = this.boardArea ? this.boardArea.y + (this.boardArea.height - totalGridWidth) / 2 : (this.scale.height - totalGridWidth) / 2 - 60;
         
         const gridBg = this.add.graphics({ fillStyle: { color: 0xffffff, alpha: 0.8 } }).fillRoundedRect(this.startX - 10, this.startY - 10, totalGridWidth + 20, totalGridWidth + 20, 20);
         
@@ -423,7 +524,7 @@ class GameScene extends Phaser.Scene {
     // --- AMBIENT EFFECTS & WIN STATE ---
     createCrabs() {
         for(let i=0; i<3; i++) {
-            const y = this.scale.height - 100;
+            const y = this.compactLayout ? this.scale.height - 14 : this.scale.height - 100;
             const x = Phaser.Math.Between(50, this.scale.width-50);
             const crabBody = this.add.graphics().fillStyle(0xFF4500).fillEllipse(0, 0, 12, 9);
             const crabLegs = this.add.graphics().lineStyle(3, 0xFF4500, 1).beginPath().moveTo(-8,-5).lineTo(-15,-12).moveTo(8,-5).lineTo(15,-12).moveTo(-8,2).lineTo(-14,8).moveTo(-6,4).lineTo(-10,10).moveTo(8,2).lineTo(14,8).moveTo(6,4).lineTo(10,10).strokePath();
@@ -449,7 +550,14 @@ class GameScene extends Phaser.Scene {
         this.winOverlay = this.add.graphics().fillStyle(0, 0.5).fillRect(0, 0, width, height).setAlpha(0).setDepth(10);
         this.tweens.add({ targets: this.winOverlay, alpha: 1, duration: 500 });
         this.winText = this.add.text(width/2, height/2, 'FLAWLESS!', { fontFamily:'"Comic Sans MS", cursive', fontSize:'80px', color:'#ff69b4', stroke:'#fff', strokeThickness:10, align:'center', shadow:{offsetX:3,offsetY:3,color:'#000',blur:5,stroke:true,fill:true}}).setOrigin(0.5).setScale(0).setDepth(11);
-        this.tweens.add({ targets: this.winText, scale: 1, angle: 720, duration: 1200, ease: 'Elastic.easeOut', delay: 300, onComplete: () => { this.winParticlesEvent = this.time.addEvent({ delay: 200, callback: () => this.triggerParticles(Phaser.Math.Between(0,width), Phaser.Math.Between(0,height), [0xff007f,0xffc0cb,0xFFD700,0xEE82EE,0x87CEEB],25,250,1200), loop: true }); } });
+        if (this.compactLayout) {
+            const span = this.GRID_SIZE * this.CELL_SIZE;
+            const fontSize = Math.max(12, Math.floor(80 * Math.min(1, (span - 12) / this.winText.width)));
+            this.winText.setFontSize(fontSize).setPosition(this.startX + span / 2, this.startY + span / 2);
+        }
+        this.tweens.add({ targets: this.winText, scale: 1, angle: this.compactLayout ? 0 : 720,
+            duration: this.compactLayout ? 600 : 1200, ease: this.compactLayout ? 'Cubic.easeOut' : 'Elastic.easeOut', delay: 300,
+            onComplete: () => { this.winParticlesEvent = this.time.addEvent({ delay: 200, callback: () => this.triggerParticles(Phaser.Math.Between(0,width), Phaser.Math.Between(0,height), [0xff007f,0xffc0cb,0xFFD700,0xEE82EE,0x87CEEB],25,250,1200), loop: true }); } });
         this.gameElements.add(this.winOverlay).add(this.winText);
     }
 }

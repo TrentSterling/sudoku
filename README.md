@@ -2,7 +2,7 @@
 
 Sudoku puzzle generator and solver in the browser
 
-The [2026-10-26 correctness release](RELEASE_NOTES.md) fixes animation races and preserves puzzle progress during resize. [Gameplay regression checks](tests/gameplay/README.md) document the test commands and coverage.
+The [2026-10-26 releases](RELEASE_NOTES.md) fix animation races, preserve puzzle progress during resize, and keep the palette and actions reachable on compact screens. [Gameplay and responsive regression checks](tests/gameplay/README.md) document the test commands and coverage.
 
 [![sudoku screenshot](https://tront.xyz/img/sudoku.png)](https://tront.xyz/sudoku/)
 
